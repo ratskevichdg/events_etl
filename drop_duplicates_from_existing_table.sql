@@ -34,5 +34,8 @@ SELECT DISTINCT RAW_FILE FROM ITRA_DEMO.raw_data.json_raw; -- 5,300,014
 
 
 -- Recreate stream object
-CREATE OR REPLACE STREAM pipes.events_stream ON TABLE ITRA_DEMO.raw_data.json_raw;
+CREATE OR REPLACE STREAM pipes.events_stream 
+ON TABLE ITRA_DEMO.raw_data.json_raw
+APPEND_ONLY=TRUE;
+
 DROP STREAM raw_data.events_stream;

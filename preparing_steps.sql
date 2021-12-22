@@ -77,5 +77,8 @@ AS
 
 
 -- Create a stream object
-CREATE OR REPLACE STREAM events_stream ON TABLE ITRA_DEMO.raw_data.json_raw;
+CREATE OR REPLACE STREAM pipes.events_stream 
+ON TABLE ITRA_DEMO.raw_data.json_raw
+APPEND_ONLY=TRUE;
+
 SHOW STREAMS;

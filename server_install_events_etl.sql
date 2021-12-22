@@ -19,20 +19,6 @@ USING (
         WHERE $1:event_data.data.eventData.eventType = 'server_install'
     ) AS S
 ON IE.player_id = S.player_id
-WHEN MATCHED -- DELETE CONDITION
-    AND S.METADATA$ACTION = 'DELETE'
-    AND S.METADATA$ISUPDATE = 'FALSE'
-    THEN DELETE
-WHEN MATCHED -- UPDATE CONDITION
-    AND S.METADATA$ACTION = 'INSERT'
-    AND S.METADATA$ISUPDATE = 'TRUE'
-    THEN UPDATE
-    SET IE.player_id = S.player_id,
-        IE.device_id = S.device_id,
-        IE.install_date = S.install_date,
-        IE.client_id = S.client_id,
-        IE.app_name = S.app_name,
-        IE.country = S.country
 WHEN NOT MATCHED -- INSERT CONDITION
     AND S.METADATA$ACTION = 'INSERT'
     AND S.METADATA$ISUPDATE = 'FALSE'
