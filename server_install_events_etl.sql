@@ -1,7 +1,13 @@
--- create task
+ALTER TASK SERVER_INSTALL_EVENT_CHANGES SUSPEND;
+ALTER TASK REFRESH_EVENTS_STREAM SUSPEND;
+ALTER TASK DROP_DUPLICATES_FROM_JSON_RAW SUSPEND;
+
+
+-- create task which inserts server_install events into server_install_events table
 CREATE OR REPLACE TASK server_install_event_changes
     WAREHOUSE = COMPUTE_WH
-    AFTER insert_single_copy
+    SCHEDULE = '60 MINUTE'
+    WHEN SYSTEM$STREAM_HAS_DATA('EVENTS_STREAM')
     AS
 MERGE INTO ITRA_DEMO.events.server_install_events AS IE
 USING (
@@ -17,6 +23,17 @@ USING (
           METADATA$ROW_ID
         FROM events_stream
         WHERE $1:event_data.data.eventData.eventType = 'server_install'
+        AND events_stream.$1 NOT IN (
+          SELECT RAW_FILE 
+          FROM (
+            SELECT 
+              COUNT(*) AS NUM_ROWS, 
+              RAW_FILE 
+            FROM ITRA_DEMO.raw_data.json_raw 
+            GROUP BY RAW_FILE 
+            HAVING NUM_ROWS > 1
+            )
+        )
     ) AS S
 ON IE.player_id = S.player_id
 WHEN NOT MATCHED -- INSERT CONDITION
@@ -27,8 +44,7 @@ WHEN NOT MATCHED -- INSERT CONDITION
     VALUES
     (S.player_id, S.device_id, S.install_date, S.client_id, S.app_name, S.country);
     
-ALTER TASK TRUNCATE_DUPLICATES_TABLE RESUME;
+
+ALTER TASK DROP_DUPLICATES_FROM_JSON_RAW RESUME;
+ALTER TASK REFRESH_EVENTS_STREAM RESUME;
 ALTER TASK SERVER_INSTALL_EVENT_CHANGES RESUME;
-ALTER TASK INSERT_SINGLE_COPY RESUME;
-ALTER TASK DROP_DUPLCATED_DATA RESUME;
-ALTER TASK FIND_DUPLICATES RESUME;

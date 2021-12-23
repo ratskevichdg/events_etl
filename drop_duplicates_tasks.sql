@@ -1,51 +1,29 @@
 USE DATABASE ITRA_DEMO;
 USE SCHEMA PIPES;
 
-SELECT * FROM raw_data.duplicates;
 
--- Create task which find duplicates and put their into transient table
-CREATE OR REPLACE TASK find_duplicates
+ALTER TASK SERVER_INSTALL_EVENT_CHANGES SUSPEND;
+ALTER TASK REFRESH_EVENTS_STREAM SUSPEND;
+ALTER TASK DROP_DUPLICATES_FROM_JSON_RAW SUSPEND;
+
+
+-- create task which drops duplicates from jso_raw table
+CREATE OR REPLACE TASK drop_duplicates_from_json_raw
     WAREHOUSE = COMPUTE_WH
-    SCHEDULE = '3 MINUTE'
-    WHEN SYSTEM$STREAM_HAS_DATA('EVENTS_STREAM')
+    AFTER SERVER_INSTALL_EVENT_CHANGES
     AS
-INSERT INTO raw_data.duplicates
-    (SELECT raw_file
-    FROM raw_data.json_raw
-    GROUP BY 1
-    HAVING COUNT(*) > 1);
+INSERT OVERWRITE INTO ITRA_DEMO.raw_data.json_raw
+(SELECT DISTINCT * FROM ITRA_DEMO.raw_data.json_raw);
     
 
--- Create task which removes all data with duplicates from json_raw table
-CREATE OR REPLACE TASK drop_duplcated_data
+-- create task which recreates events_stream
+CREATE OR REPLACE TASK refresh_events_stream
     WAREHOUSE = COMPUTE_WH
-    AFTER find_duplicates
+    AFTER DROP_DUPLICATES_FROM_JSON_RAW
     AS
-DELETE FROM raw_data.json_raw AS a
-USING raw_data.duplicates AS b
-WHERE (a.raw_file)=(b.raw_file);
+CREATE OR REPLACE STREAM pipes.events_stream ON TABLE ITRA_DEMO.raw_data.json_raw APPEND_ONLY=TRUE;
 
 
--- Insert into json_raw table a single copy of duplicated data
-CREATE OR REPLACE TASK insert_single_copy
-    WAREHOUSE = COMPUTE_WH
-    AFTER drop_duplcated_data
-    AS
-INSERT INTO raw_data.json_raw
-SELECT * 
-FROM raw_data.duplicates;
-
-
--- Truncate transient table
-CREATE OR REPLACE TASK truncate_duplicates_table
-    WAREHOUSE = COMPUTE_WH
-    AFTER server_install_event_changes
-    AS
-TRUNCATE TABLE raw_data.duplicates;
-
-
-ALTER TASK TRUNCATE_DUPLICATES_TABLE RESUME;
 ALTER TASK SERVER_INSTALL_EVENT_CHANGES RESUME;
-ALTER TASK INSERT_SINGLE_COPY RESUME;
-ALTER TASK DROP_DUPLCATED_DATA RESUME;
-ALTER TASK FIND_DUPLICATES RESUME;
+ALTER TASK REFRESH_EVENTS_STREAM RESUME;
+ALTER TASK DROP_DUPLICATES_FROM_JSON_RAW RESUME;
